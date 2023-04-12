@@ -223,7 +223,7 @@ impl Editor {
         let Size { w, h } = size()?;
         // Update the width of the document in case of update
         let max = self.doc().len_lines().to_string().len() + 2;
-        self.doc_mut().size.w = w.saturating_sub(max) as usize;
+        self.doc_mut().size.w = w.saturating_sub(max);
         // Run through each line of the terminal, rendering the correct line
         self.render_document(w, h)?;
         // Leave last line for status line
@@ -244,7 +244,11 @@ impl Editor {
             write!(
                 self.stdout,
                 "{}{} │{}",
-                Fg(Color::Rgb { r: 150, g: 150, b: 150 }),
+                Fg(Color::Rgb {
+                    r: 150,
+                    g: 150,
+                    b: 150
+                }),
                 num,
                 Fg(Color::Reset)
             )?;
@@ -260,11 +264,21 @@ impl Editor {
     /// Render the status line at the bottom of the document
     fn render_status_line(&mut self, w: usize, h: usize) -> Result<()> {
         execute!(self.stdout, MoveTo(0, h as u16), Clear(ClType::CurrentLine))?;
-        let ext = self.doc().file_name.split('.').last().unwrap().to_string();
+        let ext = self
+            .doc()
+            .file_name
+            .as_ref()
+            .map(|f| f.split('.').last().unwrap())
+            .unwrap_or("N/A")
+            .to_string();
         // Form left hand side of status bar
         let lhs = format!(
             "{}{} │ {} │",
-            self.doc().file_name.split('/').last().unwrap(),
+            self.doc()
+                .file_name
+                .as_ref()
+                .map(|f| f.split('/').last().unwrap())
+                .unwrap_or_default(),
             if self.doc().modified { "[+]" } else { "" },
             filetype(&ext).unwrap_or(ext)
         );
@@ -277,13 +291,17 @@ impl Editor {
             self.doc().loc().x,
         );
         // Use alinio to align left and right with padding between
-        let status_line = alinio::align::between(&[&lhs, &rhs], w.saturating_sub(2))
-            .unwrap_or_else(|| "".to_string());
+        let status_line =
+            alinio::align::between(&[&lhs, &rhs], w.saturating_sub(2)).unwrap_or_default();
         // Write the status bar
         write!(
             self.stdout,
             "{} {} {}",
-            Bg(Color::Rgb { r: 31, g: 92, b: 62 }),
+            Bg(Color::Rgb {
+                r: 31,
+                g: 92,
+                b: 62
+            }),
             status_line,
             Bg(Color::Reset),
         )?;
@@ -308,7 +326,9 @@ impl Editor {
                     // Exit the menu when the enter key is pressed
                     (KMod::NONE, KCode::Enter) => done = true,
                     // Remove from the input string if the user presses backspace
-                    (KMod::NONE, KCode::Backspace) => { input.pop(); },
+                    (KMod::NONE, KCode::Backspace) => {
+                        input.pop();
+                    }
                     // Add to the input string if the user presses a character
                     (KMod::NONE | KMod::SHIFT, KCode::Char(c)) => input.push(c),
                     _ => (),
@@ -416,7 +436,13 @@ impl Editor {
             c -= 1;
             if let Some(line) = self.doc().line(self.doc().loc().y) {
                 if let Some(ch) = line.chars().nth(c) {
-                    self.exe(Event::Delete(Loc { x: c, y: self.doc().loc().y }, ch.to_string()));
+                    self.exe(Event::Delete(
+                        Loc {
+                            x: c,
+                            y: self.doc().loc().y,
+                        },
+                        ch.to_string(),
+                    ));
                 }
             }
         }
@@ -513,7 +539,10 @@ impl Editor {
             self.render_document(w, h)?;
             // Write custom status line for the replace mode
             execute!(self.stdout, MoveTo(0, h as u16), Clear(ClType::CurrentLine))?;
-            write!(self.stdout, "[<-] Previous | [->] Next | [Enter] Replace | [Tab] Replace All");
+            write!(
+                self.stdout,
+                "[<-] Previous | [->] Next | [Enter] Replace | [Tab] Replace All"
+            );
             self.stdout.flush()?;
             // Move back to correct cursor location
             let Loc { x, y } = self.doc().cursor;

@@ -1,19 +1,23 @@
 [package]
-name = "kaolinite"
-version = "0.6.1"
 authors = ["curlpipe <11898833+curlpipe@users.noreply.github.com>"]
-edition = "2021"
-license = "MIT"
-description = "A crate to assist in the creation of TUI text editors."
-repository = "https://github.com/curlpipe/kaolinite"
-exclude = ["/demos/7.txt"]
-readme = "README.md"
-keywords = ["unicode", "text-processing"]
 categories = ["text-processing"]
+description = "A crate to assist in the creation of TUI text editors."
+edition = "2021"
+exclude = ["/demos/7.txt"]
+keywords = ["unicode", "text-processing"]
+license = "MIT"
+name = "kaolinite"
+readme = "README.md"
+repository = "https://github.com/curlpipe/kaolinite"
+version = "0.6.1"
+
+[workspace]
+members = ["./examples/cactus"]
 
 [profile.release]
 debug = true
 lto = true
+strip = true
 
 [dependencies]
 quick-error = "2.0.1"
