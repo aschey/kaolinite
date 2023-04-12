@@ -431,7 +431,7 @@ impl Editor {
             loc.y -= 1;
             loc.x = self.doc().line(loc.y).unwrap().chars().count();
             self.exe(Event::SpliceUp(loc));
-        } else {
+        } else if c > 0 {
             // Backspace was pressed in the middle of the line, delete the character
             c -= 1;
             if let Some(line) = self.doc().line(self.doc().loc().y) {
