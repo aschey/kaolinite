@@ -57,6 +57,7 @@ quick_error! {
             source(err)
         }
         OutOfRange
+        MissingFilename
     }
 }
 

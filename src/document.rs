@@ -16,7 +16,7 @@ use std::ops::RangeBounds;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Document {
     /// The file name of the document opened
-    pub file_name: String,
+    pub file_name: Option<String>,
     /// The rope of the document to facilitate reading and writing to disk
     pub file: Rope,
     /// Contains the number of lines buffered into the document
@@ -58,7 +58,7 @@ impl Document {
             dbl_map: CharMap::default(),
             tab_map: CharMap::default(),
             loaded_to: 0,
-            file_name,
+            file_name: Some(file_name),
             cursor: Loc::default(),
             offset: Loc::default(),
             size,
@@ -67,6 +67,26 @@ impl Document {
             modified: false,
             tab_width: 4,
         })
+    }
+
+    /// Open an empty document without a file.
+    #[must_use]
+    pub fn open_empty(size: Size) -> Self {
+        Self {
+            file: Rope::default(),
+            lines: vec![],
+            dbl_map: CharMap::default(),
+            tab_map: CharMap::default(),
+            loaded_to: 0,
+            file_name: None,
+            cursor: Loc::default(),
+            offset: Loc::default(),
+            size,
+            char_ptr: 0,
+            event_mgmt: EventMgmt::default(),
+            modified: false,
+            tab_width: 4,
+        }
     }
 
     /// Sets the tab display width measured in spaces, default being 4
@@ -79,10 +99,14 @@ impl Document {
     /// Returns an error if the file fails to write, due to permissions
     /// or character set issues.
     pub fn save(&mut self) -> Result<()> {
-        self.modified = false;
-        self.file
-            .write_to(BufWriter::new(File::create(&self.file_name)?))?;
-        Ok(())
+        if let Some(file_name) = &self.file_name {
+            self.modified = false;
+            self.file
+                .write_to(BufWriter::new(File::create(file_name)?))?;
+            Ok(())
+        } else {
+            Err(Error::MissingFilename)
+        }
     }
 
     /// Save to a specified file.
