@@ -1,12 +1,16 @@
+use std::ops::{Bound, RangeBounds};
 /// utils.rs - utilities to assist in editing and keep code in document.rs readable
 use unicode_width::UnicodeWidthStr;
-use std::ops::{Bound, RangeBounds};
 
 /// Utility for easily forming a regular expression from a string
 #[macro_export]
 macro_rules! regex {
-    () => { regex::Regex::new("").unwrap() };
-    ($ex:expr) => { regex::Regex::new($ex).unwrap() };
+    () => {
+        regex::Regex::new("").unwrap()
+    };
+    ($ex:expr) => {
+        regex::Regex::new($ex).unwrap()
+    };
 }
 
 /// Represents a location
@@ -46,7 +50,7 @@ impl Size {
 pub fn trim(string: &str, start: usize, length: usize, tab_width: usize) -> String {
     let string = string.replace('\t', &" ".repeat(tab_width));
     if start >= string.width() {
-        return "".to_string();
+        return String::new();
     }
     let desired_length = string.width() - start;
     let mut chars: String = string;
@@ -54,19 +58,22 @@ pub fn trim(string: &str, start: usize, length: usize, tab_width: usize) -> Stri
         chars = chars.chars().skip(1).collect();
     }
     if chars.width() < desired_length {
-        chars = format!(" {}", chars);
+        chars = format!(" {chars}");
     }
     while chars.width() > length {
         chars.pop();
     }
     if chars.width() < length && desired_length > length {
-        chars = format!("{} ", chars);
+        chars = format!("{chars} ");
     }
     chars
 }
 
 /// Extract range information
-pub fn get_range<R>(range: &R, min: usize, max: usize) -> (usize, usize) where R: RangeBounds<usize> {
+pub fn get_range<R>(range: &R, min: usize, max: usize) -> (usize, usize)
+where
+    R: RangeBounds<usize>,
+{
     let start = match range.start_bound() {
         Bound::Unbounded => 0,
         Bound::Excluded(_) => unreachable!(),

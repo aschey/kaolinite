@@ -1,8 +1,8 @@
 /// document.rs - has Document, for opening, editing and saving documents
-use crate::event::{Error, Event, Result, Status, EventMgmt};
-use crate::map::{CharMap, form_map};
-use crate::searching::{Searcher, Match};
-use crate::utils::{Loc, Size, get_range, trim, width};
+use crate::event::{Error, Event, EventMgmt, Result, Status};
+use crate::map::{form_map, CharMap};
+use crate::searching::{Match, Searcher};
+use crate::utils::{get_range, trim, width, Loc, Size};
 use ropey::Rope;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -80,7 +80,8 @@ impl Document {
     /// or character set issues.
     pub fn save(&mut self) -> Result<()> {
         self.modified = false;
-        self.file.write_to(BufWriter::new(File::create(&self.file_name)?))?;
+        self.file
+            .write_to(BufWriter::new(File::create(&self.file_name)?))?;
         Ok(())
     }
 
@@ -89,7 +90,8 @@ impl Document {
     /// Returns an error if the file fails to write, due to permissions
     /// or character set issues.
     pub fn save_as(&self, file_name: &str) -> Result<()> {
-        self.file.write_to(BufWriter::new(File::create(file_name)?))?;
+        self.file
+            .write_to(BufWriter::new(File::create(file_name)?))?;
         Ok(())
     }
 
@@ -190,8 +192,18 @@ impl Document {
         end += line_start;
         let removed = self.file.slice(start..end).to_string();
         // Update unicode and tab map
-        self.dbl_map.shift_deletion(&Loc::at(line_start, y), (start, end), &removed, self.tab_width);
-        self.tab_map.shift_deletion(&Loc::at(line_start, y), (start, end), &removed, self.tab_width);
+        self.dbl_map.shift_deletion(
+            &Loc::at(line_start, y),
+            (start, end),
+            &removed,
+            self.tab_width,
+        );
+        self.tab_map.shift_deletion(
+            &Loc::at(line_start, y),
+            (start, end),
+            &removed,
+            self.tab_width,
+        );
         // Update rope
         self.file.remove(start..end);
         // Update cache
@@ -350,7 +362,7 @@ impl Document {
     /// Move the cursor right
     pub fn move_right(&mut self) -> Status {
         // Return if already on end of line
-        let line = self.line(self.loc().y).unwrap_or_else(|| "".to_string());
+        let line = self.line(self.loc().y).unwrap_or_default();
         let width = width(&line, self.tab_width);
         if width == self.loc().x {
             return Status::EndOfLine;
@@ -379,7 +391,7 @@ impl Document {
 
     /// Move to the end of the line
     pub fn move_end(&mut self) {
-        let line = self.line(self.loc().y).unwrap_or_else(|| "".to_string());
+        let line = self.line(self.loc().y).unwrap_or_default();
         let length = line.chars().count();
         self.goto_x(length);
     }
@@ -453,7 +465,7 @@ impl Document {
     /// Moves to the next word in the document
     pub fn move_next_word(&mut self) -> Status {
         let Loc { x, y } = self.char_loc();
-        let line = self.line(y).unwrap_or_else(|| "".to_string());
+        let line = self.line(y).unwrap_or_default();
         if x == line.chars().count() && y != self.len_lines() {
             return Status::EndOfLine;
         }
@@ -470,14 +482,15 @@ impl Document {
         // Prepare
         let mut srch = Searcher::new(regex);
         // Check current line for matches
-        let current: String = self.line(self.loc().y)?
+        let current: String = self
+            .line(self.loc().y)?
             .chars()
             .skip(self.char_ptr + inc)
             .collect();
         if let Some(mut mtch) = srch.lfind(&current) {
             mtch.loc.y = self.loc().y;
             mtch.loc.x += self.char_ptr + inc;
-            return Some(mtch)
+            return Some(mtch);
         }
         // Check subsequent lines for matches
         let mut line_no = self.loc().y + 1;
@@ -497,7 +510,8 @@ impl Document {
         // Prepare
         let mut srch = Searcher::new(regex);
         // Check current line for matches
-        let current: String = self.line(self.loc().y)?
+        let current: String = self
+            .line(self.loc().y)?
             .chars()
             .take(self.char_ptr)
             .collect();
@@ -513,7 +527,9 @@ impl Document {
                 mtch.loc.y = line_no;
                 return Some(mtch);
             }
-            if line_no == 0 { break; }
+            if line_no == 0 {
+                break;
+            }
             line_no = line_no.saturating_sub(1);
         }
         None
@@ -544,7 +560,7 @@ impl Document {
 
     /// Function to go to a specific x position
     pub fn goto_x(&mut self, x: usize) {
-        let line = self.line(self.loc().y).unwrap_or_else(|| "".to_string());
+        let line = self.line(self.loc().y).unwrap_or_default();
         // Bounds checking
         if self.char_ptr == x {
             return;
@@ -624,6 +640,26 @@ impl Document {
         Ok(())
     }
 
+    /// Returns the location using the UTF-8 byte offset as the column
+    #[must_use]
+    pub fn to_utf8_loc(&self, loc: &Loc) -> Loc {
+        let utf8_col = self.file.line(loc.y).char_to_byte(loc.x);
+        Loc {
+            x: utf8_col,
+            y: loc.y,
+        }
+    }
+
+    /// Returns the location using the UTF-16 code unit index as the column
+    #[must_use]
+    pub fn to_utf16_loc(&self, loc: &Loc) -> Loc {
+        let utf16_col = self.file.line(loc.y).char_to_utf16_cu(loc.x);
+        Loc {
+            x: utf16_col,
+            y: loc.y,
+        }
+    }
+
     /// Calculate the display index from the character index on a certain line
     fn display_idx(&self, loc: &Loc) -> usize {
         let mut idx = loc.x;
@@ -660,14 +696,22 @@ impl Document {
         let mut magnitude = 0;
         let Loc { x, y } = self.loc();
         if let Some(map) = self.dbl_map.get(y) {
-            let last_dbl = self.dbl_map.count(&self.loc(), true).unwrap().saturating_sub(1);
+            let last_dbl = self
+                .dbl_map
+                .count(&self.loc(), true)
+                .unwrap()
+                .saturating_sub(1);
             let start = map[last_dbl].0;
             if x == start + 1 {
                 magnitude += 1;
             }
         }
         if let Some(map) = self.tab_map.get(y) {
-            let last_tab = self.tab_map.count(&self.loc(), true).unwrap().saturating_sub(1);
+            let last_tab = self
+                .tab_map
+                .count(&self.loc(), true)
+                .unwrap()
+                .saturating_sub(1);
             let start = map[last_tab].0;
             let range = start..start + self.tab_width;
             if range.contains(&x) {
@@ -684,7 +728,7 @@ impl Document {
     }
 
     /// Load lines in this document up to a specified index.
-    /// This must be called before starting to edit the document as 
+    /// This must be called before starting to edit the document as
     /// this is the function that actually load and processes the text.
     pub fn load_to(&mut self, mut to: usize) {
         // Make sure to doesn't go over the number of lines in the buffer
@@ -702,7 +746,8 @@ impl Document {
                 self.dbl_map.insert(i, dbl_map);
                 self.tab_map.insert(i, tab_map);
                 // Cache this line
-                self.lines.push(line.trim_end_matches(&['\n', '\r']).to_string());
+                self.lines
+                    .push(line.trim_end_matches(&['\n', '\r']).to_string());
             }
             // Store new loaded point
             self.loaded_to = to;
